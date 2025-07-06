@@ -4,3 +4,4 @@ pandas
 torchaudio
 tqdm
 numpy
+tensorboard
