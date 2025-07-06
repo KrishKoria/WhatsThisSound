@@ -1,11 +1,16 @@
 import modal
 import torchaudio
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 import pandas as pd
 import torch
 import torch.nn as nn
 import torchaudio.transforms as T
+import torch.optim as optim
+from torch.optim.lr_scheduler import OneCycleLR
+from tqdm import tqdm
+from model import AudioCNN
+
 app = modal.App(name="WhatsThisSound")
 image = (modal.Image.debian_slim().pip_install_from_requirements("requirements.txt").apt_install(["wget", "unzip", "ffmpeg", "libsndfile1"]).run_commands(["cd /tmp && wget https://github.com/karolpiczak/ESC-50/archive/master.zip -O esc50.zip", "cd /tmp && unzip esc50.zip","mkdir -p /opt/esc50-data", "cp -r /tmp/ESC-50-master/* /opt/esc50-data/", "rm -rf /tmp/ESC-50-master /tmp/esc50.zip"]).add_local_python_source("model"))
 
@@ -79,6 +84,32 @@ def train():
 
     print(f"Training samples: {len(train_dataset)}")
     print(f"Val samples: {len(val_dataset)}")
+
+    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    test_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = AudioCNN(num_classes=len(train_dataset.classes))
+    model.to(device)
+
+    num_epochs = 100
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    optimizer = optim.AdamW(model.parameters(), lr=0.0005, weight_decay=0.01)
+
+    scheduler = OneCycleLR(
+        optimizer,
+        max_lr=0.002,
+        epochs=num_epochs,
+        steps_per_epoch=len(train_dataloader),
+        pct_start=0.1
+    )
+    best_accuracy = 0.0
+    print("Starting training")
+    for epoch in range(num_epochs):
+        model.train()
+        epoch_loss = 0.0
+        progress_bar = tqdm(train_dataloader, desc=f'Epoch {epoch+1}/{num_epochs}')
+
 
 
 @app.local_entrypoint()
