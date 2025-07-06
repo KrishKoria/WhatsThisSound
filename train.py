@@ -177,7 +177,7 @@ def train():
             }, '/models/best_model.pth')
             print(f'New best model saved: {accuracy:.2f}%')
 
-        print(f'Training completed! Best accuracy: {best_accuracy:.2f}%')
+    print(f'Training completed! Best accuracy: {best_accuracy:.2f}%')
 @app.local_entrypoint()
 def main():
     train.remote()
