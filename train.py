@@ -9,6 +9,7 @@ import torchaudio.transforms as T
 import torch.optim as optim
 from torch.optim.lr_scheduler import OneCycleLR
 from tqdm import tqdm
+import numpy as np
 from model import AudioCNN
 
 app = modal.App(name="WhatsThisSound")
@@ -47,6 +48,22 @@ class ESC50Dataset(Dataset):
         else:
             spectrogram = waveform
         return spectrogram, row["label"]
+
+
+def mixup_data(x, y):
+    lam = np.random.beta(0.2, 0.2)
+
+    batch_size = x.size(0)
+    index = torch.randperm(batch_size).to(x.device)
+
+    mixed_x = lam * x + (1 - lam) * x[index, :]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+
 
 @app.function(image=image, volumes={"/data": volume, "/models": model_volume}, gpu="A10G", timeout=3600 * 3)
 def train():
@@ -109,9 +126,58 @@ def train():
         model.train()
         epoch_loss = 0.0
         progress_bar = tqdm(train_dataloader, desc=f'Epoch {epoch+1}/{num_epochs}')
+        for data, target in progress_bar:
+            data, target = data.to(device), target.to(device)
 
+            if np.random.random() > 0.7:
+                data, target_a, target_b, lam = mixup_data(data, target)
+                output = model(data)
+                loss = mixup_criterion(
+                    criterion, output, target_a, target_b, lam)
+            else:
+                output = model(data)
+                loss = criterion(output, target)
 
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
 
+            epoch_loss += loss.item()
+            progress_bar.set_postfix({'Loss': f'{loss.item():.4f}'})
+
+        avg_epoch_loss = epoch_loss / len(train_dataloader)
+        model.eval()
+        correct = 0
+        total = 0
+        val_loss = 0
+
+        with torch.no_grad():
+            for data, target in test_dataloader:
+                data, target = data.to(device), target.to(device)
+                outputs = model(data)
+                loss = criterion(outputs, target)
+                val_loss += loss.item()
+
+                _, predicted = torch.max(outputs.data, 1)
+                total += target.size(0)
+                correct += (predicted == target).sum().item()
+
+        accuracy = 100 * correct / total
+        avg_val_loss = val_loss / len(test_dataloader)
+
+        print(f'Epoch {epoch+1} Loss: {avg_epoch_loss:.4f}, Val Loss: {avg_val_loss:.4f}, Accuracy: {accuracy:.2f}%')
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'accuracy': accuracy,
+                'epoch': epoch,
+                'classes': train_dataset.classes
+            }, '/models/best_model.pth')
+            print(f'New best model saved: {accuracy:.2f}%')
+
+        print(f'Training completed! Best accuracy: {best_accuracy:.2f}%')
 @app.local_entrypoint()
 def main():
     train.remote()

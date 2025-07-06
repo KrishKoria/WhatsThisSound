@@ -3,3 +3,4 @@ modal
 pandas
 torchaudio
 tqdm
+numpy
