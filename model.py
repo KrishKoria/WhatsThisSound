@@ -14,7 +14,7 @@ class ResidualBlock(nn.Module):
                 nn.Conv2d(input_channels, output_channels, 1, stride, bias=False),
                 nn.BatchNorm2d(output_channels)
             )
-    def forward(self, x):
+    def forward(self, x, feature_maps=None, prefix=""):
         out = self.conv1(x)
         out = self.bn1(out)
         out = torch.relu(out)
@@ -22,7 +22,14 @@ class ResidualBlock(nn.Module):
         out = self.bn2(out)
         shortcut = self.shortcut(x) if self.use_shortcut else x
         out_add = out + shortcut
+        if feature_maps is not None:
+            feature_maps[f"{prefix}.conv1"] = out_add
+
         out = torch.relu(out_add)
+
+        if feature_maps is not None:
+            feature_maps[f"{prefix}.relu"] = out
+
         return out
 
 class AudioCNN(nn.Module):
@@ -42,18 +49,45 @@ class AudioCNN(nn.Module):
         self.dropout = nn.Dropout(0.5)
         self.fc = nn.Linear(512, num_classes)
 
-    def forward(self, x):
-        x = self.conv1(x)
-        for block in self.layer1:
-            x = block(x)
-        for block in self.layer2:
-            x = block(x)
-        for block in self.layer3:
-            x = block(x)
-        for block in self.layer4:
-            x = block(x)
-        x = self.average_pool(x)
-        x = x.view(x.size(0), -1)
-        x = self.dropout(x)
-        x = self.fc(x)
-        return x
+    def forward(self, x, return_feature_maps=False):
+        if not return_feature_maps:
+            x = self.conv1(x)
+            for block in self.layer1:
+                x = block(x)
+            for block in self.layer2:
+                x = block(x)
+            for block in self.layer3:
+                x = block(x)
+            for block in self.layer4:
+                x = block(x)
+            x = self.average_pool(x)
+            x = x.view(x.size(0), -1)
+            x = self.dropout(x)
+            x = self.fc(x)
+            return x
+        else:
+            feature_maps = {}
+            x = self.conv1(x)
+            feature_maps["conv1"] = x
+
+            for idx, block in enumerate(self.layer1):
+                x = block(x, feature_maps, prefix=f"layer1.block{idx}")
+            feature_maps["layer1"] = x
+
+            for idx, block in enumerate(self.layer2):
+                x = block(x, feature_maps, prefix=f"layer2.block{idx}")
+            feature_maps["layer2"] = x
+
+            for idx, block in enumerate(self.layer3):
+                x = block(x, feature_maps, prefix=f"layer3.block{idx}")
+            feature_maps["layer3"] = x
+
+            for idx, block in enumerate(self.layer4):
+                x = block(x, feature_maps, prefix=f"layer4.block{idx}")
+            feature_maps["layer4"] = x
+
+            x = self.average_pool(x)
+            x = x.view(x.size(0), -1)
+            x = self.dropout(x)
+            x = self.fc(x)
+            return x, feature_maps

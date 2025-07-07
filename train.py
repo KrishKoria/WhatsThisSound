@@ -66,7 +66,7 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
-@app.function(image=image, volumes={"/data": volume, "/models": model_volume}, gpu="L40S", timeout=3600 * 3)
+@app.function(image=image, volumes={"/data": volume, "/models": model_volume}, gpu="A10G", timeout=3600 * 3)
 def train():
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -76,7 +76,7 @@ def train():
     esc50_dir = Path("/opt/esc50-data")
     train_transform = nn.Sequential(
         T.MelSpectrogram(
-            sample_rate=22050,
+            sample_rate=44100,
             n_fft=1024,
             hop_length=512,
             n_mels=128,
@@ -89,7 +89,7 @@ def train():
     )
     val_transform = nn.Sequential(
         T.MelSpectrogram(
-            sample_rate=22050,
+            sample_rate=44100,
             n_fft=1024,
             hop_length=512,
             n_mels=128,
