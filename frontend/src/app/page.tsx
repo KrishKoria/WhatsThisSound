@@ -1,6 +1,9 @@
 "use client"
 import {Button} from "~/components/ui/button";
 import React, {useState} from "react";
+import {Badge} from "~/components/ui/badge";
+import {Card, CardContent} from "~/components/ui/card";
+import {env} from "~/env";
 interface Prediction {
     class: string
     confidence: number
@@ -32,23 +35,45 @@ export default function HomePage() {
     const [fileName, setFileName] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [vizData, setVizData] = useState<ApiResponse | null>(null);
-
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
         setFileName(file.name);
         setIsLoading(true);
         setError(null);
-        try {
-            // Simulate file processing
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            // Here you would typically send the file to your backend for processing
-            console.log("File uploaded:", file.name);
-        } catch (error) {
-            console.error("Error uploading file:", error);
-        } finally {
-            setIsLoading(false);
+        setVizData(null);
+        const reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        reader.onload = async () => {
+            try {
+                const arrayBuffer = reader.result as ArrayBuffer;
+                const base64String = btoa(
+                    new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+                );
+                const response = await fetch(env.NEXT_PUBLIC_INFERENCE_URL!, {
+                 method: "POST",
+                    headers:  {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({data: base64String}),
+                })
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data: ApiResponse = await response.json();
+                setVizData(data);
+            } catch (err) {
+                setError(
+                    err instanceof Error ? err.message : "An unknown error occured",
+                );
+            } finally {
+                setIsLoading(false);
+            }
         }
+        reader.onerror = () => {
+            setError("Failed ot read the file.");
+            setIsLoading(false);
+        };
     }
     return (
       <main className="min-h-screen bg-stone-50 p-8">
@@ -58,7 +83,7 @@ export default function HomePage() {
               CNN Audio Visualizer
             </h1>
             <p className="text-md mb-8 text-stone-600">
-              Upload a WAV file to see the model's predictions and feauture maps
+              Upload a WAV file to see the model's predictions and feature maps
             </p>
               <div className="flex flex-col items-center">
                   <div className="relative inline-block">
@@ -66,7 +91,7 @@ export default function HomePage() {
                           type="file"
                           accept=".wav"
                           id="file-upload"
-                          onChange={() => {}}
+                          onChange={handleFileChange}
                           disabled={isLoading}
                           className="absolute inset-0 w-full cursor-pointer opacity-0"
                       />
@@ -79,8 +104,23 @@ export default function HomePage() {
                           {isLoading ? "Analysing..." : "Choose File"}
                       </Button>
                   </div>
+                  {fileName && (
+                      <Badge
+                          variant="secondary"
+                          className="mt-4 bg-stone-200 text-stone-700"
+                      >
+                          {fileName}
+                      </Badge>
+                  )}
               </div>
           </div>
+            {error && (
+                <Card className="mb-8 border-red-200 bg-red-50">
+                    <CardContent>
+                        <p className="text-red-600">Error: {error}</p>
+                    </CardContent>
+                </Card>
+            )}
         </div>
       </main>
   );
