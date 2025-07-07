@@ -108,8 +108,8 @@ def train():
     print(f"Training samples: {len(train_dataset)}")
     print(f"Val samples: {len(val_dataset)}")
 
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    test_dataloader = DataLoader(val_dataset, batch_size=64, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = AudioCNN(num_classes=len(train_dataset.classes))
@@ -135,7 +135,7 @@ def train():
         for data, target in progress_bar:
             data, target = data.to(device), target.to(device)
 
-            if np.random.random() > 0.7:
+            if np.random.random() > 0.5:
                 data, target_a, target_b, lam = mixup_data(data, target)
                 output = model(data)
                 loss = mixup_criterion(
