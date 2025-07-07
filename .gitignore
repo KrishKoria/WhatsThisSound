@@ -2,3 +2,5 @@
 *_logs/
 .idea/
 *.wav
+node_modules/
+.env
