@@ -2,8 +2,9 @@
 import {Button} from "~/components/ui/button";
 import React, {useState} from "react";
 import {Badge} from "~/components/ui/badge";
-import {Card, CardContent} from "~/components/ui/card";
+import {Card, CardContent, CardHeader, CardTitle} from "~/components/ui/card";
 import {env} from "~/env";
+import {Progress} from "~/components/ui/progress";
 interface Prediction {
     class: string
     confidence: number
@@ -27,6 +28,80 @@ interface ApiResponse {
     visualization: VisualizationData;
     input_spectrogram: LayerData;
     waveform: WaveformData;
+}
+const ESC50_EMOJI_MAP: Record<string, string> = {
+    dog: "🐕",
+    rain: "🌧️",
+    crying_baby: "👶",
+    door_wood_knock: "🚪",
+    helicopter: "🚁",
+    rooster: "🐓",
+    sea_waves: "🌊",
+    sneezing: "🤧",
+    mouse_click: "🖱️",
+    chainsaw: "🪚",
+    pig: "🐷",
+    crackling_fire: "🔥",
+    clapping: "👏",
+    keyboard_typing: "⌨️",
+    siren: "🚨",
+    cow: "🐄",
+    crickets: "🦗",
+    breathing: "💨",
+    door_wood_creaks: "🚪",
+    car_horn: "📯",
+    frog: "🐸",
+    chirping_birds: "🐦",
+    coughing: "😷",
+    can_opening: "🥫",
+    engine: "🚗",
+    cat: "🐱",
+    water_drops: "💧",
+    footsteps: "👣",
+    washing_machine: "🧺",
+    train: "🚂",
+    hen: "🐔",
+    wind: "💨",
+    laughing: "😂",
+    vacuum_cleaner: "🧹",
+    church_bells: "🔔",
+    insects: "🦟",
+    pouring_water: "🚰",
+    brushing_teeth: "🪥",
+    clock_alarm: "⏰",
+    airplane: "✈️",
+    sheep: "🐑",
+    toilet_flush: "🚽",
+    snoring: "😴",
+    clock_tick: "⏱️",
+    fireworks: "🎆",
+    crow: "🐦‍⬛",
+    thunderstorm: "⛈️",
+    drinking_sipping: "🥤",
+    glass_breaking: "🔨",
+    hand_saw: "🪚",
+};
+
+const getEmojiForClass = (className: string): string => {
+    return ESC50_EMOJI_MAP[className] || "🔈";
+};
+function splitLayers(visualization: VisualizationData) {
+    const main: [string, LayerData][] = [];
+    const internals: Record<string, [string, LayerData][]> = {};
+
+    for (const [name, data] of Object.entries(visualization)) {
+        if (!name.includes(".")) {
+            main.push([name, data]);
+        } else {
+            const [parent] = name.split(".");
+            if (parent === undefined) continue;
+
+            if (!internals[parent]) internals[parent] = [];
+            internals[parent].push([name, data]);
+        }
+    }
+
+    return { main, internals };
 }
 
 export default function HomePage() {
@@ -75,6 +150,9 @@ export default function HomePage() {
             setIsLoading(false);
         };
     }
+    const { main, internals } = vizData
+        ? splitLayers(vizData?.visualization)
+        : { main: [], internals: {} };
     return (
       <main className="min-h-screen bg-stone-50 p-8">
         <div className="mx-auto max-w-[100%]">
@@ -121,6 +199,35 @@ export default function HomePage() {
                     </CardContent>
                 </Card>
             )}
+            {vizData && (
+                <div className="space-y-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-stone-900">
+                                Top Predictions
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {vizData.predictions.slice(0, 3).map((pred, i) => (
+                                    <div key={pred.class} className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="text-md font-medium text-stone-700">
+                                                {getEmojiForClass(pred.class)}{" "}
+                                                <span>{pred.class.replaceAll("_", " ")}</span>
+                                            </div>
+                                            <Badge variant={i === 0 ? "default" : "secondary"}>
+                                                {(pred.confidence * 100).toFixed(1)}%
+                                            </Badge>
+                                        </div>
+                                        <Progress value={pred.confidence * 100} className="h-2" />
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+                )}
         </div>
       </main>
   );
