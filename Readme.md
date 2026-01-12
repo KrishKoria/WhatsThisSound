@@ -7,7 +7,7 @@ A comprehensive audio classification system that uses a Convolutional Neural Net
 This project implements an end-to-end audio classification pipeline that:
 
 - Trains a ResNet-inspired CNN on the ESC-50 dataset (50 sound classes)
-- Provides a Modal-hosted inference API for real-time predictions
+- Provides a Modal- hosted inference API for real-time predictions
 - Features a Next.js frontend for audio upload and visualization
 - Visualizes model feature maps and spectrograms for interpretability
 
@@ -282,4 +282,4 @@ WhatsThisSound/
 - **Tailwind CSS**: Utility-first CSS framework
 - **Radix UI**: Accessible UI components
 - **T3 Stack**: Type-safe full-stack development
-- 
+-
