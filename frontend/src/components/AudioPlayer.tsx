@@ -77,6 +77,7 @@ export default function AudioPlayer({
   const handleSeek = (value: number[]) => {
     if (!audioRef.current) return;
     const newTime = value[0];
+    if (newTime === undefined) return;
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
